@@ -1,7 +1,6 @@
 // File: api/backend.js
 
 export default async function handler(req, res) {
-  // Hanya terima method POST
   if (req.method !== 'POST') {
     return res.status(405).json({ success: false, message: 'Method Not Allowed' });
   }
@@ -16,9 +15,9 @@ export default async function handler(req, res) {
 
   try {
     // ------------------------------------------------------------------
-    // 1. TIKTOK & DOUYIN (Menggunakan TikWM API)
+    // 1. TIKTOK & DOUYIN
     // ------------------------------------------------------------------
-    if (cleanUrl.includes('tiktok.com') || cleanUrl.includes('vt.tiktok.com') || cleanUrl.includes('douyin.com')) {
+    if (cleanUrl.includes('tiktok.com') || cleanUrl.includes('douyin.com')) {
       try {
         const tikRes = await fetch(`https://www.tikwm.com/api/?url=${encodeURIComponent(cleanUrl)}`);
         const tikData = await tikRes.json();
@@ -33,54 +32,66 @@ export default async function handler(req, res) {
             musicUrl: tikData.data.music
           });
         }
-      } catch (err) {
-        console.error('TikTok API Error:', err);
+      } catch (e) {
+        console.error("TikTok Error", e);
       }
     }
 
     // ------------------------------------------------------------------
-    // 2. YOUTUBE & YOUTUBE SHORTS (Menggunakan Cobalt Public Instances)
+    // 2. YOUTUBE & YOUTUBE SHORTS (Menggunakan API Fast Downloader)
     // ------------------------------------------------------------------
     if (cleanUrl.includes('youtube.com') || cleanUrl.includes('youtu.be')) {
-      const cobaltInstances = [
-        'https://cobalt-api.kwi.li/',
-        'https://api.cobalt.tools/'
-      ];
-
-      for (const instance of cobaltInstances) {
-        try {
-          const ytRes = await fetch(instance, {
-            method: 'POST',
-            headers: {
-              'Accept': 'application/json',
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-              url: cleanUrl,
-              videoQuality: '720'
-            })
-          });
-
-          if (ytRes.ok) {
-            const ytData = await ytRes.json();
-            if (ytData.url) {
-              return res.status(200).json({
-                success: true,
-                title: 'YouTube Video / Shorts',
-                noWmUrl: ytData.url,
-                wmUrl: ytData.url,
-                musicUrl: ytData.url
-              });
-            }
+      // Metode A: Menggunakan AllTube / SaveTube API
+      try {
+        const ytRes = await fetch(`https://api.vreden.my.id/api/ytmp4?url=${encodeURIComponent(cleanUrl)}`);
+        if (ytRes.ok) {
+          const ytData = await ytRes.json();
+          if (ytData.result && ytData.result.download) {
+            return res.status(200).json({
+              success: true,
+              title: ytData.result.title || 'YouTube Video',
+              cover: ytData.result.metadata?.thumbnail || '',
+              noWmUrl: ytData.result.download.url || ytData.result.download,
+              wmUrl: ytData.result.download.url || ytData.result.download
+            });
           }
-        } catch (err) {
-          console.error('YouTube API Error:', err);
         }
+      } catch (e) {
+        console.error("YT API A Error", e);
+      }
+
+      // Metode B: Menggunakan Cobalt API Alternate Node
+      try {
+        const cobaltRes = await fetch('https://co.wuk.sh/api/json', {
+          method: 'POST',
+          headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            url: cleanUrl,
+            vCodec: 'h264'
+          })
+        });
+
+        if (cobaltRes.ok) {
+          const cobaltData = await cobaltRes.json();
+          if (cobaltData.url) {
+            return res.status(200).json({
+              success: true,
+              title: 'YouTube Shorts',
+              noWmUrl: cobaltData.url,
+              wmUrl: cobaltData.url
+            });
+          }
+        }
+      } catch (e) {
+        console.error("YT API B Error", e);
       }
     }
 
     // ------------------------------------------------------------------
-    // 3. INSTAGRAM (Menggunakan SnapInsta / PubAPI Fallback)
+    // 3. INSTAGRAM
     // ------------------------------------------------------------------
     if (cleanUrl.includes('instagram.com')) {
       try {
@@ -90,19 +101,19 @@ export default async function handler(req, res) {
           if (igData.result && igData.result.length > 0) {
             return res.status(200).json({
               success: true,
-              title: 'Instagram Media',
+              title: 'Instagram Post/Reels',
               noWmUrl: igData.result[0].url || igData.result[0],
               wmUrl: igData.result[0].url || igData.result[0]
             });
           }
         }
-      } catch (err) {
-        console.error('Instagram API Error:', err);
+      } catch (e) {
+        console.error("IG Error", e);
       }
     }
 
     // ------------------------------------------------------------------
-    // 4. FALLBACK GENERAL (Canine Tools)
+    // 4. GENERAL ENGINE (Canine Tools)
     // ------------------------------------------------------------------
     try {
       const canineResponse = await fetch('https://canine.tools', {
@@ -129,25 +140,14 @@ export default async function handler(req, res) {
             musicUrl: data.url
           });
         }
-
-        if (data.status === 'picker' && data.picker && data.picker.length > 0) {
-          return res.status(200).json({
-            success: true,
-            title: 'Media Gallery',
-            noWmUrl: data.picker[0].url,
-            wmUrl: data.picker[0].url,
-            musicUrl: data.picker[0].url
-          });
-        }
       }
-    } catch (err) {
-      console.error('General Fallback Error:', err);
+    } catch (e) {
+      console.error("Canine Error", e);
     }
 
-    // Jika semua scraper gagal
     return res.status(400).json({
       success: false,
-      message: 'Gagal memproses link. Server downloader sedang sibuk atau link bersifat privat.'
+      message: 'Gagal mengambil video. Silakan coba lagi nanti.'
     });
 
   } catch (error) {
