@@ -24,59 +24,64 @@ export default async function handler(req, res) {
           success: true,
           title: result.data.title || 'TikTok Video',
           cover: result.data.cover,
-          videoUrl: result.data.play,
+          noWmUrl: result.data.play,
           wmUrl: result.data.wmplay,
           musicUrl: result.data.music
         });
       }
     }
 
-    // 2. ENGINE YOUTUBE & SHORTS (Jio/YTDL Engine Stable API)
-    if (cleanUrl.includes('youtube.com') || cleanUrl.includes('youtu.be')) {
-      try {
-        const ytRes = await fetch(`https://api.vyt.workers.dev/?url=${encodeURIComponent(cleanUrl)}`);
-        if (ytRes.ok) {
-          const ytData = await ytRes.json();
-          if (ytData && (ytData.url || ytData.download_url)) {
-            return res.status(200).json({
-              success: true,
-              title: ytData.title || 'YouTube Video',
-              cover: ytData.thumbnail || '',
-              videoUrl: ytData.url || ytData.download_url
-            });
-          }
-        }
-      } catch (e) {}
+    // 2. UNIVERSAL ENGINE UNTUK SEMUA PLATFORM LAIN (YouTube, IG, FB, Twitter, Spotify, Pinterest, Bilibili, dll)
+    const cobRes = await fetch(`https://co.wuk.sh/api/json`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+      },
+      body: JSON.stringify({
+        url: cleanUrl,
+        vQuality: '720',
+        isAudioOnly: false
+      })
+    });
+
+    if (cobRes.ok) {
+      const cobData = await cobRes.json();
+      const mainMediaUrl = cobData.url || (cobData.picker ? cobData.picker[0].url : null);
+
+      if (mainMediaUrl) {
+        return res.status(200).json({
+          success: true,
+          title: cobData.filename || 'Universal Media Downloader',
+          noWmUrl: mainMediaUrl,
+          wmUrl: mainMediaUrl,
+          musicUrl: mainMediaUrl
+        });
+      }
     }
 
-    // 3. ENGINE UNIVERSAL DARI SAVETUBE / COBALT AGGREGATOR
-    const universalEndpoints = [
-      `https://api.downloadgram.org/api/parse?url=${encodeURIComponent(cleanUrl)}`,
-      `https://api.asphyxia.my.id/api/download?url=${encodeURIComponent(cleanUrl)}`
-    ];
+    // 3. SECONDARY FALLBACK UNTUK UNIVERSAL ENGINE
+    const fallbackRes = await fetch(`https://api.downloadgram.org/api/parse?url=${encodeURIComponent(cleanUrl)}`, {
+      headers: { 'User-Agent': 'Mozilla/5.0' }
+    });
 
-    for (const endpoint of universalEndpoints) {
-      try {
-        const uRes = await fetch(endpoint, { headers: { 'User-Agent': 'Mozilla/5.0' } });
-        if (uRes.ok) {
-          const uData = await uRes.json();
-          const targetUrl = uData.url || (uData.result ? uData.result.url || uData.result.video : null);
-          
-          if (targetUrl) {
-            return res.status(200).json({
-              success: true,
-              title: uData.title || (uData.result ? uData.result.title : 'Media File'),
-              cover: uData.thumb || (uData.result ? uData.result.thumbnail : ''),
-              videoUrl: targetUrl
-            });
-          }
-        }
-      } catch (e) {}
+    if (fallbackRes.ok) {
+      const fbData = await fallbackRes.json();
+      if (fbData.url) {
+        return res.status(200).json({
+          success: true,
+          title: fbData.title || 'Downloaded Media',
+          cover: fbData.thumb || '',
+          noWmUrl: fbData.url,
+          wmUrl: fbData.url,
+          musicUrl: fbData.url
+        });
+      }
     }
 
     return res.status(400).json({
       success: false,
-      message: 'Platform ini tidak merespons atau link bersifat privat.'
+      message: 'Gagal memproses link. Pastikan link publik dan dapat diakses.'
     });
 
   } catch (error) {
