@@ -238,92 +238,115 @@
   <div id="toast" class="toast"></div>
 
   <script>
-    function showToast(message) {
-      const toast = document.getElementById("toast");
-      toast.innerText = message;
-      toast.className = "toast show";
-      setTimeout(function(){ 
-        toast.className = toast.className.replace("toast show", "toast"); 
-      }, 3000);
+    function showToast(msg) {
+      const t = document.getElementById("toast");
+      t.innerText = msg;
+      t.className = "toast show";
+      setTimeout(() => { t.className = "toast"; }, 3000);
     }
 
     async function pasteClipboard() {
       try {
         const text = await navigator.clipboard.readText();
         document.getElementById('urlInput').value = text;
-        showToast('Link berhasil ditempel!');
-      } catch (err) {
-        showToast('Gagal membaca clipboard');
+        showToast('Link ditempel!');
+      } catch (e) {
+        showToast('Gagal menempel link');
       }
     }
 
-    async function triggerDirectDownload(fileUrl, filename) {
-      if (!fileUrl) return;
-      showToast('Mengunduh file...');
-      try {
-        const response = await fetch(fileUrl);
-        const blob = await response.blob();
-        const blobUrl = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.style.display = 'none';
-        a.href = blobUrl;
-        a.download = filename;
-        document.body.appendChild(a);
-        a.click();
-        window.URL.revokeObjectURL(blobUrl);
-        showToast('Download Selesai!');
-      } catch (error) {
-        window.open(fileUrl, '_blank');
-      }
+    function downloadFile(url) {
+      if (!url) return;
+      window.open(url, '_blank');
     }
 
+    // MULTI ENGINE PARSER LANGSUNG DARI BROWSER
     async function analyzeUrl() {
       const url = document.getElementById('urlInput').value.trim();
       const btn = document.getElementById('analyzeBtn');
-      const resultDiv = document.getElementById('result');
+      const resDiv = document.getElementById('result');
 
       if (!url) {
-        showToast('Masukkan URL terlebih dahulu!');
+        showToast('Paste link video dulu!');
         return;
       }
 
       btn.disabled = true;
       btn.innerText = 'PROCESSING...';
-      resultDiv.style.display = 'none';
+      resDiv.style.display = 'none';
 
       try {
-        const response = await fetch('/api/backend', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ url: url })
-        });
+        let title = 'Media Video';
+        let cover = '';
+        let noWmUrl = '';
+        let wmUrl = '';
+        let musicUrl = '';
 
-        const data = await response.json();
-
-        if (data.success) {
-          resultDiv.style.display = 'block';
-
-          const mainVideo = data.noWmUrl || data.wmUrl;
-          let mediaHtml = '';
-          if (mainVideo) {
-            mediaHtml = `<video controls playsinline src="${mainVideo}"></video>`;
-          } else if (data.cover) {
-            mediaHtml = `<img src="${data.cover}" alt="Cover">`;
+        // 1. ENGINE TIKTOK & DOUYIN
+        if (url.includes('tiktok.com') || url.includes('douyin.com')) {
+          const res = await fetch(`https://www.tikwm.com/api/?url=${encodeURIComponent(url)}`);
+          const data = await res.json();
+          if (data.code === 0 && data.data) {
+            title = data.data.title || 'TikTok Video';
+            cover = data.data.cover;
+            noWmUrl = data.data.play;
+            wmUrl = data.data.wmplay;
+            musicUrl = data.data.music;
           }
-
-          resultDiv.innerHTML = `
-            ${mediaHtml}
-            <h3 style="font-size:0.95rem; font-weight:700; margin-bottom:12px;">${data.title}</h3>
-            ${data.noWmUrl ? `<button onclick="triggerDirectDownload('${data.noWmUrl}', 'XCY_NoWatermark.mp4')" class="dl-btn" style="background:#25d366">DOWNLOAD NO WATERMARK</button>` : ''}
-            ${data.wmUrl ? `<button onclick="triggerDirectDownload('${data.wmUrl}', 'XCY_Watermark.mp4')" class="dl-btn">DOWNLOAD WATERMARK</button>` : ''}
-            ${data.musicUrl ? `<button onclick="triggerDirectDownload('${data.musicUrl}', 'XCY_Audio.mp3')" class="dl-btn" style="background:#007bff">DOWNLOAD AUDIO (MP3)</button>` : ''}
-          `;
-          showToast('Media berhasil diproses!');
-        } else {
-          showToast(data.message || 'Gagal memproses link.');
+        } 
+        // 2. ENGINE YOUTUBE & SHORTS
+        else if (url.includes('youtube.com') || url.includes('youtu.be')) {
+          const res = await fetch(`https://api.siputzx.my.id/api/d/ytmp4?url=${encodeURIComponent(url)}`);
+          const data = await res.json();
+          if (data && data.data) {
+            title = data.data.title || 'YouTube Video';
+            cover = data.data.thumbnail || '';
+            noWmUrl = data.data.dl || data.data.download;
+            wmUrl = noWmUrl;
+            musicUrl = noWmUrl;
+          }
+        } 
+        // 3. ENGINE INSTAGRAM & FACEBOOK
+        else if (url.includes('instagram.com') || url.includes('facebook.com') || url.includes('fb.watch')) {
+          const res = await fetch(`https://api.siputzx.my.id/api/d/ig?url=${encodeURIComponent(url)}`);
+          const data = await res.json();
+          if (data && data.data) {
+            const dl = Array.isArray(data.data) ? data.data[0].url : data.data.url;
+            title = 'Social Media Video';
+            noWmUrl = dl;
+            wmUrl = dl;
+            musicUrl = dl;
+          }
+        } 
+        // 4. ENGINE UNIVERSAL SEMUA PLATFORM LAIN
+        else {
+          const res = await fetch(`https://api.downloadgram.org/api/parse?url=${encodeURIComponent(url)}`);
+          const data = await res.json();
+          if (data && data.url) {
+            title = data.title || 'Downloaded Media';
+            cover = data.thumb || '';
+            noWmUrl = data.url;
+            wmUrl = data.url;
+            musicUrl = data.url;
+          }
         }
-      } catch (error) {
-        showToast('Terjadi kesalahan jaringan/server.');
+
+        if (noWmUrl) {
+          resDiv.style.display = 'block';
+          resDiv.innerHTML = `
+            ${noWmUrl ? `<video controls playsinline src="${noWmUrl}"></video>` : (cover ? `<img src="${cover}">` : '')}
+            <h3 style="font-size:0.95rem; font-weight:700; margin-bottom:12px;">${title}</h3>
+            ${noWmUrl ? `<button onclick="downloadFile('${noWmUrl}')" class="dl-btn" style="background:#25d366">DOWNLOAD NO WATERMARK</button>` : ''}
+            ${wmUrl ? `<button onclick="downloadFile('${wmUrl}')" class="dl-btn">DOWNLOAD WATERMARK</button>` : ''}
+            ${musicUrl ? `<button onclick="downloadFile('${musicUrl}')" class="dl-btn" style="background:#007bff">DOWNLOAD AUDIO (MP3)</button>` : ''}
+          `;
+          showToast('Media berhasil ditemukan!');
+        } else {
+          showToast('Link tidak dapat diproses / tidak valid');
+        }
+
+      } catch (err) {
+        showToast('Terjadi kesalahan koneksi.');
       } finally {
         btn.disabled = false;
         btn.innerText = 'ANALYZE';
