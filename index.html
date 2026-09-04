@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>XCY DOWNLOADER - Minimalist Media Downloader</title>
+  <title>XCY DOWNLOADER - Universal Media Downloader</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   <style>
     * {
@@ -255,23 +255,8 @@
       }
     }
 
-    async function triggerDownload(fileUrl, filename) {
-      showToast('Mengunduh file...');
-      try {
-        const response = await fetch(fileUrl);
-        const blob = await response.blob();
-        const blobUrl = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.style.display = 'none';
-        a.href = blobUrl;
-        a.download = filename;
-        document.body.appendChild(a);
-        a.click();
-        window.URL.revokeObjectURL(blobUrl);
-        showToast('Download Selesai!');
-      } catch (e) {
-        window.open(fileUrl, '_blank');
-      }
+    function openLink(url) {
+      if (url) window.open(url, '_blank');
     }
 
     async function analyzeUrl() {
@@ -300,27 +285,26 @@
         if (data.success) {
           resDiv.style.display = 'block';
 
-          const mainVideo = data.noWmUrl || data.wmUrl;
-          let mediaHtml = '';
-          if (mainVideo) {
-            mediaHtml = `<video controls playsinline src="${mainVideo}"></video>`;
+          let preview = '';
+          if (data.noWmUrl) {
+            preview = `<video controls playsinline src="${data.noWmUrl}"></video>`;
           } else if (data.cover) {
-            mediaHtml = `<img src="${data.cover}" alt="Cover">`;
+            preview = `<img src="${data.cover}" alt="Preview">`;
           }
 
           resDiv.innerHTML = `
-            ${mediaHtml}
+            ${preview}
             <h3 style="font-size:0.95rem; font-weight:700; margin-bottom:12px;">${data.title}</h3>
-            ${data.noWmUrl ? `<button onclick="triggerDownload('${data.noWmUrl}', 'XCY_NoWatermark.mp4')" class="dl-btn" style="background:#25d366">DOWNLOAD NO WATERMARK</button>` : ''}
-            ${data.wmUrl ? `<button onclick="triggerDownload('${data.wmUrl}', 'XCY_Watermark.mp4')" class="dl-btn">DOWNLOAD WATERMARK</button>` : ''}
-            ${data.musicUrl ? `<button onclick="triggerDownload('${data.musicUrl}', 'XCY_Audio.mp3')" class="dl-btn" style="background:#007bff">DOWNLOAD AUDIO (MP3)</button>` : ''}
+            ${data.noWmUrl ? `<button onclick="openLink('${data.noWmUrl}')" class="dl-btn" style="background:#25d366">DOWNLOAD NO WATERMARK</button>` : ''}
+            ${data.wmUrl ? `<button onclick="openLink('${data.wmUrl}')" class="dl-btn">DOWNLOAD WATERMARK</button>` : ''}
+            ${data.musicUrl ? `<button onclick="openLink('${data.musicUrl}')" class="dl-btn" style="background:#007bff">DOWNLOAD AUDIO (MP3)</button>` : ''}
           `;
           showToast('Media berhasil diproses!');
         } else {
           showToast(data.message || 'Gagal memproses link.');
         }
       } catch (error) {
-        showToast('Terjadi kesalahan koneksi.');
+        showToast('Terjadi kesalahan jaringan.');
       } finally {
         btn.disabled = false;
         btn.innerText = 'ANALYZE';
