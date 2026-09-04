@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>XCY DOWNLOADER - Minimalist Media Downloader</title>
+  <title>XCY DOWNLOADER - Universal Media Downloader</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   <style>
     * {
@@ -92,7 +92,6 @@
       cursor: not-allowed;
     }
 
-    /* Custom Toast Notification */
     .toast {
       visibility: hidden;
       min-width: 280px;
@@ -177,12 +176,14 @@
       width: 100%;
       background: #111;
       color: white;
-      padding: 12px 20px;
+      padding: 14px 20px;
       border-radius: 20px;
       text-decoration: none;
       font-weight: bold;
       margin-top: 10px;
-      font-size: 0.9rem;
+      font-size: 0.85rem;
+      cursor: pointer;
+      border: none;
       transition: background 0.2s;
     }
 
@@ -256,6 +257,26 @@
       }
     }
 
+    async function triggerDirectDownload(fileUrl, filename) {
+      if (!fileUrl) return;
+      showToast('Mengunduh file...');
+      try {
+        const response = await fetch(fileUrl);
+        const blob = await response.blob();
+        const blobUrl = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.style.display = 'none';
+        a.href = blobUrl;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(blobUrl);
+        showToast('Download Selesai!');
+      } catch (error) {
+        window.open(fileUrl, '_blank');
+      }
+    }
+
     async function analyzeUrl() {
       const url = document.getElementById('urlInput').value.trim();
       const btn = document.getElementById('analyzeBtn');
@@ -282,21 +303,22 @@
         if (data.success) {
           resultDiv.style.display = 'block';
 
+          const mainVideo = data.noWmUrl || data.wmUrl;
           let mediaHtml = '';
-          if (data.videoUrl) {
-            mediaHtml = `<video controls playsinline src="${data.videoUrl}"></video>`;
+          if (mainVideo) {
+            mediaHtml = `<video controls playsinline src="${mainVideo}"></video>`;
           } else if (data.cover) {
             mediaHtml = `<img src="${data.cover}" alt="Cover">`;
           }
 
           resultDiv.innerHTML = `
             ${mediaHtml}
-            <h3 style="font-size:0.95rem; font-weight:700; margin-bottom:10px;">${data.title}</h3>
-            ${data.videoUrl ? `<a href="${data.videoUrl}" target="_blank" class="dl-btn" style="background:#25d366" download="video.mp4">DOWNLOAD VIDEO (MP4)</a>` : ''}
-            ${data.wmUrl ? `<a href="${data.wmUrl}" target="_blank" class="dl-btn" download="video_wm.mp4">DOWNLOAD WATERMARK</a>` : ''}
-            ${data.musicUrl ? `<a href="${data.musicUrl}" target="_blank" class="dl-btn" style="background:#007bff" download="audio.mp3">DOWNLOAD AUDIO (MP3)</a>` : ''}
+            <h3 style="font-size:0.95rem; font-weight:700; margin-bottom:12px;">${data.title}</h3>
+            ${data.noWmUrl ? `<button onclick="triggerDirectDownload('${data.noWmUrl}', 'XCY_NoWatermark.mp4')" class="dl-btn" style="background:#25d366">DOWNLOAD NO WATERMARK</button>` : ''}
+            ${data.wmUrl ? `<button onclick="triggerDirectDownload('${data.wmUrl}', 'XCY_Watermark.mp4')" class="dl-btn">DOWNLOAD WATERMARK</button>` : ''}
+            ${data.musicUrl ? `<button onclick="triggerDirectDownload('${data.musicUrl}', 'XCY_Audio.mp3')" class="dl-btn" style="background:#007bff">DOWNLOAD AUDIO (MP3)</button>` : ''}
           `;
-          showToast('Media berhasil ditemukan!');
+          showToast('Media berhasil diproses!');
         } else {
           showToast(data.message || 'Gagal memproses link.');
         }
